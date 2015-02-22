@@ -2,6 +2,7 @@ package com.bitmapview;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.HashMap;
 
 /**
  * Trida reprezentujici bitmapu zobrazenou v okne Window. Zobrazuje bitmapu jako
@@ -13,6 +14,7 @@ public class Bitmap
 {
 	Dimension size;
 	String name;
+	HashMap<String, String> headers;
 
 	Color pixels[][];
 
@@ -21,8 +23,10 @@ public class Bitmap
 	/**
 	 * Vytvori prazdnou bitmapu o rozmerech 0x0.
  	 */
-	public Bitmap() {
-		this.name = "Unnamed";
+	public Bitmap(String name) {
+		this.name = (name == null) ? "Unnamed" : name;
+		this.headers = new HashMap<String, String>();
+
 		this.setSize(0, 0);
 	}
 
@@ -65,6 +69,14 @@ public class Bitmap
 	public Dimension getSize() {
 		return this.size;
 	}
+
+	/**
+	 * Vrati nazev obrazku
+	 */
+	public String getName() {
+		return this.name;
+	}
+
 
 	/**
 	 * Nastavi barvu pixelu na pozici x, y.

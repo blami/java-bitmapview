@@ -1,9 +1,14 @@
 package com.bitmapview;
 
+import com.bitmapview.format.BMP;
+
 import javax.swing.*;
+import javax.swing.filechooser.FileFilter;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.File;
+import java.io.IOException;
 
 /**
  * Hlavni trida aplikace. Predstavuje okno, ktere je bud prazdne, nebo zobrazuje
@@ -52,7 +57,7 @@ public class Window
 	 */
 	public void setBitmap(Bitmap bitmap) {
 		// Zeptame se na ulozeni predchozich zmen, pokud nejake jsou
-		this.askToSaveModified();
+		this.saveModified();
 
 		// Nastavime novou bitmapu
 		this.bitmap = bitmap;
@@ -71,7 +76,10 @@ public class Window
 		} else {
 			this.setMinimumSize(this.emptySize);
 		}
-		this.modified = true;
+
+		// Nastavime titulek okna a modifikacni priznak
+		this.setTitle("Bitmap Viewer - " + bitmap.getName());
+		this.modified = false;
 	}
 
 	/**
@@ -121,7 +129,7 @@ public class Window
 	/**
 	 * Nabidnout ulozeni obrazku pokud byl od otevreni upraven.
 	 */
-	private void askToSaveModified() {
+	private void saveModified() {
 		if (this.modified) {
 			JOptionPane.showConfirmDialog(this,
 					"Picture was modified since opened.\n"
@@ -133,16 +141,72 @@ public class Window
 		}
 	}
 
+	/**
+	 * Zobrazit dialog pro otevreni obrazku z pevneho disku a pokud je uspesne vybran soubor otevrit ho.
+	 * @param f
+	 */
+	public void open(File f) throws IOException {
+		if (f == null) {
+			JFileChooser chooser = new JFileChooser();
+
+			// Povolit pouze vyber BMP a PCX souboru
+			chooser.removeChoosableFileFilter(chooser.getChoosableFileFilters()[0]);
+			chooser.addChoosableFileFilter(new FileFilter() {
+				@Override
+				public boolean accept(File f) {
+					// Povolit prochazeni adresaru
+					if (f.isDirectory())
+						return true;
+
+					// Ziskat priponu souboru
+					int i = f.getName().lastIndexOf('.');
+ 					if (i > 1) {
+						String ext = f.getName().substring(i);
+						// Povolit jen BMP a PCX bez ohledu na velikost pismen
+						if (ext.equalsIgnoreCase(".bmp") || ext.equalsIgnoreCase(".pcx"))
+							return true;
+					}
+					return false;
+				}
+
+				@Override
+				public String getDescription() {
+					return "Bitmap files (*.bmp, *.pcx)";
+				}
+			});
+
+			// Zobrazit dialog
+			if(chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+				f = chooser.getSelectedFile();
+			}
+		}
+
+		// Pokud byl vybran soubor bude f nastaveno
+		if (f != null) {
+			// Nacist soubor
+			System.out.println(f.getAbsoluteFile());
+			Bitmap bmp = BMP.load(f);
+			this.setBitmap(bmp);
+		}
+	}
+
 
 	// Pretizeni metod
 	@Override
 	public void actionPerformed(ActionEvent e) {
 		if (e.getActionCommand().equals("Exit")) {
 			// Zeptame se na ulozeni predchozich zmen, pokud nejake jsou
-			this.askToSaveModified();
+			this.saveModified();
 
 			// Zavrit okno
 			this.dispose();
+		}
+		else if (e.getActionCommand().equals("Open")) {
+			try {
+				this.open(null);
+			} catch (IOException e1) {
+				e1.printStackTrace();
+			}
 		}
 	}
 
@@ -153,7 +217,7 @@ public class Window
 	 * @param args		argumenty predane programu prikazovou radkou
 	 */
 	public static void main(String args[]) {
-		Bitmap test = new Bitmap();
+		Bitmap test = new Bitmap(null);
 		test.setSize(640, 480);
 
 		Window window = new Window(test);

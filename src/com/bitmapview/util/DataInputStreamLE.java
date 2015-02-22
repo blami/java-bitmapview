@@ -102,8 +102,8 @@ public class DataInputStreamLE
 
 		// Vratime unsigned short poskladany little-endian (nejmin dulezity 2.
 		// byte ma nejnizsi adresu)
-		return (((b2 & 0xFF) << 8)
-				| (b1 & 0xFF));
+		return (b2 & 0xFF) << 8
+				| (b1 & 0xFF);
 	}
 
 	/**
