@@ -1,6 +1,7 @@
 package com.bitmapview.util;
 
 import java.io.*;
+import java.util.Arrays;
 
 /**
  * Trida implementujici DataInputStream akorat s tim ze nacitani veskerych
@@ -44,7 +45,7 @@ public class DataInputStreamLE
 	 */
 	@Override
 	public int skipBytes(int n) throws IOException {
-		return (int) in.skip(n);
+		return (int) this.in.skip(n);
 	}
 
 	/**
@@ -76,7 +77,7 @@ public class DataInputStreamLE
 	 */
 	@Override
 	public int readUnsignedByte() throws IOException {
-		return in.read();
+		return (byte) this.in.read();
 	}
 
 	/**
@@ -97,8 +98,8 @@ public class DataInputStreamLE
 	@Override
 	public int readUnsignedShort() throws IOException {
 		// Nacteme dva bytes (short)
-		byte b1 = (byte) in.read();
-		byte b2 = (byte) in.read();
+		byte b1 = (byte) this.in.read();
+		byte b2 = (byte) this.in.read();
 
 		// Vratime unsigned short poskladany little-endian (nejmin dulezity 2.
 		// byte ma nejnizsi adresu)
@@ -124,17 +125,18 @@ public class DataInputStreamLE
 	@Override
 	public int readInt() throws IOException {
 		// Nacteme ctyri bytes (int)
-		byte b1 = (byte) in.read();
-		byte b2 = (byte) in.read();
-		byte b3 = (byte) in.read();
-		byte b4 = (byte) in.read();
+		byte b1 = (byte) this.in.read();
+		byte b2 = (byte) this.in.read();
+		byte b3 = (byte) this.in.read();
+		byte b4 = (byte) this.in.read();
 
 		// Vratime int poskladany little-endian (nejmin dulezity 4. byte ma
 		// nejnizsi adresu)
-		return ((b1 & 0xFF) << 24
-				| (b2 & 0xFF) << 16
-				| (b3 & 0xFF) << 8
-				| (b4 & 0xFF));
+		int r = b4 << 24
+				| (b3 & 0xFF) << 16
+				| (b2 & 0xFF) << 8
+				| (b1 & 0xFF);
+		return r;
 	}
 
 	/**
@@ -145,25 +147,25 @@ public class DataInputStreamLE
 	@Override
 	public long readLong() throws IOException {
 		// Nacteme osm bytes (long)
-		byte b1 = (byte) in.read();
-		byte b2 = (byte) in.read();
-		byte b3 = (byte) in.read();
-		byte b4 = (byte) in.read();
-		byte b5 = (byte) in.read();
-		byte b6 = (byte) in.read();
-		byte b7 = (byte) in.read();
-		byte b8 = (byte) in.read();
+		byte b1 = (byte) this.in.read();
+		byte b2 = (byte) this.in.read();
+		byte b3 = (byte) this.in.read();
+		byte b4 = (byte) this.in.read();
+		byte b5 = (byte) this.in.read();
+		byte b6 = (byte) this.in.read();
+		byte b7 = (byte) this.in.read();
+		byte b8 = (byte) this.in.read();
 
 		// Vratime long poskladany little-endian (nejmin dulezity 8. byte ma
 		// nejnizsi adresu)
-		return ((b1 & 0xFFL) << 56
-				| (b2 & 0xFFL) << 48
-				| (b3 & 0xFFL) << 40
-				| (b4 & 0xFFL) << 32
-				| (b5 & 0xFFL) << 24
-				| (b6 & 0xFFL) << 16
-				| (b7 & 0xFFL) << 8
-				| (b8 & 0xFFL));
+		return b8 << 56
+				| (b7 & 0xFFL) << 48
+				| (b6 & 0xFFL) << 40
+				| (b5 & 0xFFL) << 32
+				| (b4 & 0xFFL) << 24
+				| (b3 & 0xFFL) << 16
+				| (b2 & 0xFFL) << 8
+				| (b1 & 0xFFL);
 	}
 
 	/**

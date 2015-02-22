@@ -145,7 +145,7 @@ public class Window
 	 * Zobrazit dialog pro otevreni obrazku z pevneho disku a pokud je uspesne vybran soubor otevrit ho.
 	 * @param f
 	 */
-	public void open(File f) throws IOException {
+	public void open(File f) throws Exception {
 		if (f == null) {
 			JFileChooser chooser = new JFileChooser();
 
@@ -205,6 +205,8 @@ public class Window
 			try {
 				this.open(null);
 			} catch (IOException e1) {
+				e1.printStackTrace();
+			} catch (Exception e1) {
 				e1.printStackTrace();
 			}
 		}
