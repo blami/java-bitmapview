@@ -68,9 +68,9 @@ public class Window
 			// Nastavime minimalni velikost okna tak aby neslo zmensit vice nez
 			// na velikost bitmapy (+ vyska menu)
 			this.setMinimumSize(new Dimension(
-					this.getMinimumSize().width,
-					this.getJMenuBar().getHeight() + this.getMinimumSize().height
-			));
+					this.bitmap.getMinimumSize().width,
+					this.getJMenuBar().getHeight()
+							+ this.bitmap.getMinimumSize().height));
 			// Prizpusobime velikost okna
 			this.pack();
 		} else {
@@ -174,6 +174,8 @@ public class Window
 					return "Bitmap files (*.bmp, *.pcx)";
 				}
 			});
+			// FIXME (DEBUG) Nastavit adresar na adresar aplikace
+			chooser.setCurrentDirectory(new File(System.getProperty("user.dir")));
 
 			// Zobrazit dialog
 			if(chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
@@ -204,8 +206,6 @@ public class Window
 		else if (e.getActionCommand().equals("Open")) {
 			try {
 				this.open(null);
-			} catch (IOException e1) {
-				e1.printStackTrace();
 			} catch (Exception e1) {
 				e1.printStackTrace();
 			}
