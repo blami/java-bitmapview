@@ -7,7 +7,7 @@ import java.awt.*;
 import java.io.*;
 
 /**
- * Created by blami on 22. 2. 2015.
+ * Trida pro nacitani BMP.
  */
 public class BMP {
 
@@ -33,11 +33,10 @@ public class BMP {
 		Bitmap bmp = new Bitmap(f.getName());
 
 		/* BMP ma nasledujici tvar:
-		 * hlavicka (14b)
+		 * Hlavicka (14b)
 		 * DIB hlavicka (14b)
-		 * extra bitmasky (12b nebo 16b)
-		 * paleta (volitelna, povinna pouze pro bpp <= 8)
-		 * pixeldata
+		 * Paleta (volitelna, povinna pouze pro bpp <= 8)
+		 * Pixeldata
 		 */
 
 
@@ -51,7 +50,7 @@ public class BMP {
 				(byte) reader.readByte(),
 				(byte) reader.readByte()
 		});
-		bmp.addHeader("Signature", signature);
+		bmp.addHeader("BMP Signature", signature);
 		int length = reader.readInt();
 		// Rezervovane bytes
 		reader.skipBytes(4); // 2b + 2b
@@ -60,11 +59,12 @@ public class BMP {
 		offset -= 14;
 
 		// DEBUG
+		/*
 		System.out.println("DEBUG header ["
 				+ "signature=" + signature
 				+ ", offset=" + (offset + 14)
 				+ "]");
-
+		*/
 
 		/* DIB hlavicka (existuje 7 typu, ale vsechny zacinaji velikosti
 		 * hlavicky)
@@ -92,11 +92,10 @@ public class BMP {
 		int dibBpp = 8;
 		int dibRawLength = 0;
 		int dibPaletteLength = 0;
-		int dibPaletteUseLength = 0;
 
 		readBytes = 4; // budeme si pocitat kolik z hlavicky uz mame
 					   // precteno, abychom lehko skocili na jeji konec
-		bmp.addHeader("Header Length", String.valueOf(dibHeaderLength));
+		bmp.addHeader("BMP Header Length", String.valueOf(dibHeaderLength));
 
 		// Povinna cast vsech typu DIB hlavicek
 		if (dibHeaderLength == 12 || dibHeaderLength == 64) {
@@ -114,7 +113,7 @@ public class BMP {
 
 		// 2b planes (musi byt 1) + 2b bpp
 		if (reader.readShort() != 1)
-			throw new Exception("More than one plane");
+			throw new Exception("Unsupported number of colorplanes in BMP");
 		dibBpp = reader.readShort();
 		readBytes += 4;
 		bmp.addHeader("Bpp", String.valueOf(dibBpp));
@@ -133,7 +132,7 @@ public class BMP {
 			reader.skipBytes(8);
 			// 4b pocet barev v palete + 4b pocet dulezitych barev (ignorujeme)
 			dibPaletteLength = reader.readInt();
-			dibPaletteUseLength = reader.readInt();
+			reader.skipBytes(4);
 			readBytes += 24;
 		}
 		// Preskocit zbytek DIB hlavicky
@@ -145,18 +144,19 @@ public class BMP {
 
 		// Obrazky s 8bpp a mene musi mit paletu
 		if (dibBpp <= 8 && offset == 0)
-			throw new Exception("Missing colortable");
+			throw new Exception("Missing BMP color table");
 
 		// DEBUG
+		/*
 		System.out.println("DEBUG dibheader ["
 				+ "headerlength=" + dibHeaderLength
 				+ ",size=" + dibImageSize.width + "x" + dibImageSize.height
 				+ ",bpp=" + dibBpp
 				+ ",rawlength=" + dibRawLength
 				+ ",palettelenght=" + dibPaletteLength
-				+ ",paletteuselenght=" + dibPaletteUseLength
 				+ "]");
 		System.out.println("offset=" + offset);
+		*/
 
 
 		/* Paleta
@@ -196,6 +196,7 @@ public class BMP {
 			}
 
 			// DEBUG
+			/*
 			System.out.print("DEBUG palette [");
 			for (int i = 0; i < dibPaletteLength; i++) {
 				System.out.print(i + "=" + palette[i].getRed()
@@ -205,10 +206,10 @@ public class BMP {
 					System.out.print(";");
 			}
 			System.out.println("]");
+			*/
 
 			offset -= readBytes;
 		}
-		System.out.println("offset=" + offset);
 		// U bitmap, kde jsme si domysleli barvy je treba dopreskocit
 		if (offset != 0)
 			reader.skipBytes(offset);
@@ -271,7 +272,6 @@ public class BMP {
 				// 8bpp (paleta)
 				else if (dibBpp == 8) {
 					int i = reader.readByte() & 0xFF;
-					//System.out.println("x:" + x + " y:" + y + " v=" + i);
 					bmp.setPixel(x, y, palette[i]);
 
 					readBytes += 1;
@@ -285,7 +285,7 @@ public class BMP {
 					bmp.setPixel(x, y, new Color(r, g, b));
 					readBytes += 3;
 				} else {
-					throw new Exception("Unsupported color depth");
+					throw new Exception("Unsupported BMP bpp");
 				}
 			}
 			// Preskocit data do konce radku

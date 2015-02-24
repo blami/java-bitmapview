@@ -1,6 +1,7 @@
 package com.bitmapview;
 
 import com.bitmapview.format.BMP;
+import com.bitmapview.format.PCX;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileFilter;
@@ -186,9 +187,16 @@ public class Window
 		// Pokud byl vybran soubor bude f nastaveno
 		if (f != null) {
 			// Nacist soubor
-			System.out.println(f.getAbsoluteFile());
-			Bitmap bmp = BMP.load(f);
-			this.setBitmap(bmp);
+			String ext = f.getName().substring(f.getName().lastIndexOf('.'));
+			Bitmap bitmap = null;
+
+			// FIXME try-catch blok
+			if (ext.equalsIgnoreCase(".bmp"))
+				bitmap = BMP.load(f);
+			else if (ext.equalsIgnoreCase(".pcx"))
+				bitmap = PCX.load(f);
+
+			this.setBitmap(bitmap);
 		}
 	}
 
