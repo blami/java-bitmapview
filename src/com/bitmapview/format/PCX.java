@@ -59,7 +59,7 @@ public class PCX {
 		int version = reader.readByte() & 0xFF;
 		pcx.addHeader("PCX Version", String.valueOf(version));
 		if (reader.readByte() != 1)
-			throw new Exception("Invalid PCX file format");
+			throw new Exception("Unsupported PCX encoding (not RLE)");
 		// Bpp
 		int bpp = reader.readByte() & 0xFF;
 		pcx.addHeader("Bpp", String.valueOf(bpp));
@@ -77,18 +77,26 @@ public class PCX {
 		// Rozliseni (ignorujeme)
 		reader.skipBytes(4);
 		// Barevna mapa EGA (pro 16 barev). Pozn: 256+ barev je na konci souboru
-		byte[] egaColorTable = new byte[48];
-		reader.read(egaColorTable);
+		byte[] egaPalette = new byte[48];
+		for(int i = 0; i < 48; i++)
+			egaPalette[i] = reader.readByte();
+		//reader.read(egaPalette);
 		// Reserved
 		reader.skipBytes(1);
-		// Pocet planes
+		// Pocet planes (podporujeme pouze kombinace 1 plane nebo 3 planes a
+		// 8 bpp = 24bit)
 		int planes = reader.readByte() & 0xFF;
+		if (!((planes == 3 && bpp == 8) || (planes == 1)))
+			throw new Exception("Unsupported number of planes");
+		pcx.addHeader("Color planes", String.valueOf(planes));
+
 		// Bytes per line
 		int bytesPerLine = reader.readShort();
 		// 2b typ palety, 2b + 2b velikost obrazovky, 54b reserved
 		reader.skipBytes(60);
 
 		// DEBUG
+		/*
 		System.out.println("DEBUG header ["
 				+ "version=" + version
 				+ ", bpp=" + bpp
@@ -96,7 +104,7 @@ public class PCX {
 				+ ", planes=" + planes
 				+ ", bytesPerline=" + bytesPerLine
 				+ "]");
-
+		*/
 
 		/* Pixeldata
 		 */
@@ -107,55 +115,159 @@ public class PCX {
 		int scanLineLength = planes * bytesPerLine;
 		int padding = (scanLineLength * (8 / bpp)) - imageSize.width;
 
-		// Buffer je 2d pole usporadane po radkach. Nejprve dekodujeme
+		// Buffer je 2d pole usporadane po radkach
 		byte[][] buffer = new byte[imageSize.height][scanLineLength];
-		int bufferFilled = 0;
 
 		for (int l = 0; l < imageSize.height; l++) {
 			int i = 0;
 			do {
+				// Nacteme byte ze souboru
 				byte b = reader.readByte();
-				readBytes += 1;
+				readBytes++;
+
+				// Predpoklad je ze nejde o run (RLE)
 				byte runByte = b;
 				int runLength = 1;
-				// RLE komprese, v pripade ze prvni dva bity jsou 11 pak jde
-				// o tzv. run length - tedy opakujici se stejnou hodnotu
-				if ((b & 0x0C) == 0x0C)  {
-					// Delka opakovani (pro barvy od indexu 192 to muze byt i 1)
+				// Pokud jsou nastaveny horni dva bity pak jde o run
+				if ((b & 0xC0) == 0xC0) {
+					// Delka runu je spodnich sest bitu
 					runLength = b & 0x3F;
-					// Opakujici se hodnota je dalsi byte
+					// Opakuje se nasledujici byte
 					runByte = reader.readByte();
-					readBytes += 1;
+					readBytes++;
 				}
+				// Zapsat cely beh do bufferu
+				for(int r = 0; r < runLength; r++)
+					buffer[l][i++] = runByte;
 
-				// Expandujeme nactenou hodnotu do bufferu na prislusne radce
-				for (bufferFilled += runLength;
-					 	runLength > 0 && i < scanLineLength;
-						i++, runLength--) {
-					buffer[l][i] = runByte;
-				}
 			} while (i < scanLineLength);
 		}
 
-
-		// Po nacteni kazdeho byte zkontrolujeme zdali nejsme na offsetu 768b
-		// od konce souboru
-
-
-		// Prevedeme
-
+		// DEBUG
+		/*
+		System.out.println("DEBUG pixeldata [read=" + readBytes
+				+ ", length=" + f.length()
+				+ ", offset=" + (f.length() - readBytes)
+				+ "]");
+		*/
 
      	/* Paleta
-		 * u formatu PCX mohou nastat dve situace, paleta je bud EGA a pak je
-		 * soucasti hlavicky (tj. v promenne egaColorTable) a nebo je VGA a
-		 * pak je umistena na offsetu 768b (256*3b) od konce souboru coz se
-		 * pozna podle priznaku 0x0C. Ten ale muze byt i primo v souboru
-		 * takze musime nejprve nacist obrazova data a zjistit co vlastne na
-		 * offsetu 768b od konce je.
+     	 * U formatu PCX nastavaji 3 situace.
+     	 * 1/ obrazek je v EGA palete tj. max 16 barev, pak je paleta ulozena
+     	 * primo v hlavicce. Toto plati i pro CGA paletu, kterou nepodporujeme
+     	 * 2/ obrazek je ve VGA palete tj. max 256 barev. Tato paleta se do
+     	 * hlavicky nevejde a najde se na offsetu 768b (= 256b*3) od konce
+     	 * souboru signalizovana sekvenci 0C na offsetu 769b na tomto offsetu
+     	 * 3/ obrazek ma 3 planes a 8bpp a je tedy 24b, v takovem pripade
+     	 * neni paleta potreba
 		 */
+		Color palette[] = null;
 		boolean hasVGApalette = false;
 
 
+		// Jedinny pripad kdy nenacitame zadnou paletu je 24b obrazek
+		if (!(bpp == 8 && planes == 3)) {
+			// Pokud zbyva vice nez 769 bytes od konce preskocit tolik bytes
+			// aby presne zbyvalo 769 bytes od konce.
+			long paletteOffset = f.length() - readBytes;
+			if(paletteOffset > 769) {
+				reader.skipBytes((int) (paletteOffset - 769));
+				paletteOffset = 769;
+			}
+			// Pokud je priznak 0x0C muzeme zacist cist VGA paletu
+			if ((paletteOffset == 769) && (reader.readByte() == 0x0C))
+				hasVGApalette = true;
+
+			// EGA paleta
+			if (!hasVGApalette) {
+				palette = new Color[16]; // 2, 4, 8 nebo 16 EGA barev
+				for (int i = 0; i < 48; i += 3) {
+					int r = (egaPalette[i] >> 6) & 0xFF;
+					int g = (egaPalette[i + 1] >> 6) & 0xFF;
+					int b = (egaPalette[i + 2] >> 6) & 0xFF;
+					palette[i / 3] = new Color(r, g, b);
+				}
+				pcx.addHeader("Palette", "EGA");
+			}
+			// VGA paleta
+			else {
+				// DEBUG
+				//System.out.println("DEBUG vga palette found");
+				palette = new Color[256];
+				for (int i = 0; i < 768; i += 3) {
+					int r = reader.readByte() & 0xFF;
+					int g = reader.readByte() & 0xFF;
+					int b = reader.readByte() & 0xFF;
+					palette[i / 3] = new Color(r, g, b);
+				}
+				pcx.addHeader("Palette", "EGA");
+			}
+		}
+		// TODO predat paletu do Bitmap objektu pro pripadne ukladani/export
+		// FIXME VGA paleta
+
+
+		// Zapsat vyslednou bitmapu
+		for (int y = 0; y < imageSize.height; y++) {
+			// Pro barevne hloubky mensi nez 8bpp
+			byte tmpByte = 0;
+			int tmpByteOffset = 0;
+			int tmpX = 0;
+
+			for (int x = 0; x < imageSize.width; x++) {
+				// 1bpp (EGA)
+				// co bit to index v EGA palete. V tmpByte mame ulozeny
+				// aktualni byte z bufferu, dalsi indexujeme pomoci tmpX coz
+				// je vlastne x/8 (na jeden byte je 8 pixelu). Pozici v
+				// aktualne zpracovavanem byte uchovavame v tmpByteOffset
+				if (bpp == 1 && palette != null) {
+					if (tmpByteOffset == 0) {
+						tmpByte = buffer[y][tmpX++];
+						tmpByteOffset = 7;
+					} else {
+						tmpByteOffset--;
+					}
+					int i = (tmpByte >> tmpByteOffset) & 0x01;
+					pcx.setPixel(x, y, palette[i]);
+				}
+				// 4bpp (EGA)
+				// co 4 bity to index v EGA palete. Analogicky ke zpracovani
+				// 1bit barevne hloubky pouzivame tmpByte a tmpX,
+				// tmpByteOffset = 0 znaci prvni nibble (pulka byte) s
+				// indexem v palete a tmpByteOffset = 1 druhy.
+				else if (bpp == 4 && palette != null) {
+					if (tmpByteOffset == 0) {
+						tmpByte = buffer[y][tmpX++];
+						tmpByteOffset = 1;
+					} else {
+						tmpByteOffset--;
+					}
+					int i = (tmpByte >> (tmpByteOffset * 4)) & 0x0F;
+					pcx.setPixel(x, y, palette[i]);
+				}
+				// 8bpp (EGA/VGA)
+				// index v palete
+				else if (bpp == 8 && planes == 1) {
+					int colorIndex = buffer[y][x] & 0xFF;
+					if (colorIndex > 15 && hasVGApalette == false)
+						throw new Exception("Missing VGA palette at 8bpp");
+					pcx.setPixel(x, y, palette[colorIndex]);
+				}
+				// bez palety (24bpp)
+				// pixely jsou usporadany tak, ze v kazde plane je jedna
+				// barva. Tj. v bufferu je na indexech:
+				// 0 - bytesPerLine-1 cervena slozka
+				// bytesPerLine - bytesPerLine*2-1 zelena slozka
+				// bytesPerLine*2 - scanLineLength-1 modra slozka
+				else if (bpp == 8 && planes == 3) {
+					int r = buffer[y][0 + x] & 0xFF;
+					int g = buffer[y][bytesPerLine + x] & 0xFF;
+					int b = buffer[y][bytesPerLine * 2 + x] & 0xFF;
+					pcx.setPixel(x, y, new Color(r, g, b));
+				} else
+					throw new Exception("Invalid color encoding");
+			}
+		}
 
 		// Zavrit soubor
 		reader.close();
