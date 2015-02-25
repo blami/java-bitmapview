@@ -10,6 +10,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.IOException;
+import java.util.Iterator;
+import java.util.Map;
 
 /**
  * Hlavni trida aplikace. Predstavuje okno, ktere je bud prazdne, nebo zobrazuje
@@ -67,20 +69,30 @@ public class Window
 		if(this.bitmap != null) {
 			this.add(this.bitmap);
 			// Nastavime minimalni velikost okna tak aby neslo zmensit vice nez
-			// na velikost bitmapy (+ vyska menu)
+			// na velikost bitmapy (+ vyska menu). Pokud je bitmapa moc mala
+			// pouzijeme jako zaklad prazdnou velikost.
+			int exactWidth = this.bitmap.getMinimumSize().width;
+			int exactHeight = this.getJMenuBar().getHeight()
+					+ this.bitmap.getMinimumSize().height;
 			this.setMinimumSize(new Dimension(
-					this.bitmap.getMinimumSize().width,
-					this.getJMenuBar().getHeight()
-							+ this.bitmap.getMinimumSize().height));
-			// Prizpusobime velikost okna
-			this.pack();
+					exactWidth < this.emptySize.width
+							? this.emptySize.width
+							: exactWidth,
+					exactHeight < this.emptySize.height
+							? this.emptySize.height
+							: exactHeight));
+			// Nastavime titulek na jmeno obrazku
+			this.setTitle("Bitmap Viewer - " + this.bitmap.getName());
 		} else {
 			this.setMinimumSize(this.emptySize);
+			// Nastavime prazdny titulek
+			this.setTitle("Bitmap Viewer");
 		}
-
-		// Nastavime titulek okna a modifikacni priznak
-		this.setTitle("Bitmap Viewer - " + bitmap.getName());
+		// Modifikacni priznak
 		this.modified = false;
+
+		// Prizpusobime velikost okna
+		this.pack();
 	}
 
 	/**
@@ -117,12 +129,23 @@ public class Window
 
 		menuBar = new JMenuBar();
 
-		// Soubor
+		// File
 		menu = new JMenu("File");
 		menu.add(new JMenuItem("Open", 'O')).addActionListener(this);
+		menu.add(new JMenuItem("Info", 'I')).addActionListener(this);
 		menu.addSeparator();
 		menu.add(new JMenuItem("Exit", 'x')).addActionListener(this);
 		menuBar.add(menu);
+
+		// Edit
+		menu = new JMenu("Edit");
+		menu.add(new JMenuItem("Rotate 90CW", 'R')).addActionListener(this);
+		menu.add(new JMenuItem("Rotate 90CCW", 't')).addActionListener(this);
+		menu.add(new JMenuItem("Vert. mirror", 'V')).addActionListener(this);
+		menu.add(new JMenuItem("Horiz. mirror", 'H')).addActionListener(this);
+		menu.add(new JMenuItem("Invert colors", 'n')).addActionListener(this);
+		menuBar.add(menu);
+
 
 		this.setJMenuBar(menuBar);
 	}
@@ -146,7 +169,7 @@ public class Window
 	 * Zobrazit dialog pro otevreni obrazku z pevneho disku a pokud je uspesne vybran soubor otevrit ho.
 	 * @param f
 	 */
-	public void open(File f) throws Exception {
+	public void open(File f) {
 		if (f == null) {
 			JFileChooser chooser = new JFileChooser();
 
@@ -188,35 +211,77 @@ public class Window
 		if (f != null) {
 			// Nacist soubor
 			String ext = f.getName().substring(f.getName().lastIndexOf('.'));
-			Bitmap bitmap = null;
 
-			// FIXME try-catch blok
-			if (ext.equalsIgnoreCase(".bmp"))
-				bitmap = BMP.load(f);
-			else if (ext.equalsIgnoreCase(".pcx"))
-				bitmap = PCX.load(f);
+			try {
+				Bitmap bitmap = null;
 
-			this.setBitmap(bitmap);
+				// Podle koncovky pouzit prislusny format
+				if (ext.equalsIgnoreCase(".bmp"))
+					bitmap = BMP.load(f);
+				else if (ext.equalsIgnoreCase(".pcx"))
+					bitmap = PCX.load(f);
+
+				this.setBitmap(bitmap);
+			} catch (Exception e) {
+				e.printStackTrace();
+				JOptionPane.showMessageDialog(this, e.getMessage(), "Error",
+						JOptionPane.ERROR_MESSAGE);
+			}
 		}
+	}
+
+	/**
+	 * Zobrazit informace o souboru (hlavicky).
+	 */
+	private void showInfo() {
+		String info = "No file opened.";
+		if (this.bitmap != null) {
+			info = "File (" + this.bitmap.getName() +") Information \n";
+			Iterator it = this.bitmap.getHeaders().entrySet().iterator();
+			while (it.hasNext()) {
+				Map.Entry pair = (Map.Entry) it.next();
+				info += pair.getKey() + ": " + pair.getValue() + "\n";
+			}
+		}
+		// Zobrazit dialog
+		JOptionPane.showMessageDialog(this, info, "Info",
+				JOptionPane.INFORMATION_MESSAGE);
 	}
 
 
 	// Pretizeni metod
 	@Override
 	public void actionPerformed(ActionEvent e) {
-		if (e.getActionCommand().equals("Exit")) {
+		// File
+		if (e.getActionCommand().equals("Open")) {
+			this.open(null);
+		}
+		else if (e.getActionCommand().equals("Info")) {
+			this.showInfo();
+		}
+		else if (e.getActionCommand().equals("Exit")) {
 			// Zeptame se na ulozeni predchozich zmen, pokud nejake jsou
 			this.saveModified();
 
 			// Zavrit okno
 			this.dispose();
 		}
-		else if (e.getActionCommand().equals("Open")) {
-			try {
-				this.open(null);
-			} catch (Exception e1) {
-				e1.printStackTrace();
-			}
+
+		// Edit
+		else if (e.getActionCommand().equals("Rotate 90CW")) {
+			this.bitmap.rotate(false);
+		}
+		else if (e.getActionCommand().equals("Rotate 90CCW")) {
+			this.bitmap.rotate(true);
+		}
+		else if (e.getActionCommand().equals("Vert. mirror")) {
+			this.bitmap.mirror(false);
+		}
+		else if (e.getActionCommand().equals("Horiz. mirror")) {
+			this.bitmap.mirror(true);
+		}
+		else if (e.getActionCommand().equals("Invert colors")) {
+			this.bitmap.invertColors();
 		}
 	}
 
@@ -227,9 +292,6 @@ public class Window
 	 * @param args		argumenty predane programu prikazovou radkou
 	 */
 	public static void main(String args[]) {
-		Bitmap test = new Bitmap(null);
-		test.setSize(640, 480);
-
-		Window window = new Window(test);
+		Window window = new Window();
 	}
 }
