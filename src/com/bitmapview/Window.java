@@ -2,9 +2,11 @@ package com.bitmapview;
 
 import com.bitmapview.format.BMP;
 import com.bitmapview.format.PCX;
+import com.sun.glass.ui.CommonDialogs;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileFilter;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -132,6 +134,7 @@ public class Window
 		// File
 		menu = new JMenu("File");
 		menu.add(new JMenuItem("Open", 'O')).addActionListener(this);
+		menu.add(new JMenuItem("Save", 'S')).addActionListener(this);
 		menu.add(new JMenuItem("Info", 'I')).addActionListener(this);
 		menu.addSeparator();
 		menu.add(new JMenuItem("Exit", 'x')).addActionListener(this);
@@ -155,51 +158,36 @@ public class Window
 	 */
 	private void saveModified() {
 		if (this.modified) {
-			JOptionPane.showConfirmDialog(this,
+			int result = JOptionPane.showConfirmDialog(this,
 					"Picture was modified since opened.\n"
 					+"Do you want to save changes?",
 					"Save changes?",
 					JOptionPane.YES_NO_OPTION,
 					JOptionPane.QUESTION_MESSAGE);
-			// TODO ulozit zmeny v this.bitmap
+			if (result == JOptionPane.YES_OPTION) {
+				this.save(null);
+			}
 		}
 	}
 
 	/**
-	 * Zobrazit dialog pro otevreni obrazku z pevneho disku a pokud je uspesne vybran soubor otevrit ho.
+	 * Zobrazit dialog pro otevreni obrazku z pevneho disku a pokud je uspesne
+	 * vybran soubor otevrit ho.
 	 * @param f
 	 */
 	public void open(File f) {
+		// Pokud neni soubor predan primo zobrazime dialog
 		if (f == null) {
 			JFileChooser chooser = new JFileChooser();
 
 			// Povolit pouze vyber BMP a PCX souboru
-			chooser.removeChoosableFileFilter(chooser.getChoosableFileFilters()[0]);
-			chooser.addChoosableFileFilter(new FileFilter() {
-				@Override
-				public boolean accept(File f) {
-					// Povolit prochazeni adresaru
-					if (f.isDirectory())
-						return true;
-
-					// Ziskat priponu souboru
-					int i = f.getName().lastIndexOf('.');
- 					if (i > 1) {
-						String ext = f.getName().substring(i);
-						// Povolit jen BMP a PCX bez ohledu na velikost pismen
-						if (ext.equalsIgnoreCase(".bmp") || ext.equalsIgnoreCase(".pcx"))
-							return true;
-					}
-					return false;
-				}
-
-				@Override
-				public String getDescription() {
-					return "Bitmap files (*.bmp, *.pcx)";
-				}
-			});
-			// FIXME (DEBUG) Nastavit adresar na adresar aplikace
-			chooser.setCurrentDirectory(new File(System.getProperty("user.dir")));
+			chooser.removeChoosableFileFilter(
+					chooser.getChoosableFileFilters()[0]);
+			chooser.addChoosableFileFilter(new FileNameExtensionFilter(
+					"Bitmap files (*.bmp, *.pcx)", "bmp", "pcx"));
+			// Nastavit adresar s aplikaci
+			chooser.setCurrentDirectory(
+					new File(System.getProperty("user.dir")));
 
 			// Zobrazit dialog
 			if(chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
@@ -210,18 +198,72 @@ public class Window
 		// Pokud byl vybran soubor bude f nastaveno
 		if (f != null) {
 			// Nacist soubor
-			String ext = f.getName().substring(f.getName().lastIndexOf('.'));
-
 			try {
 				Bitmap bitmap = null;
 
 				// Podle koncovky pouzit prislusny format
-				if (ext.equalsIgnoreCase(".bmp"))
+				if (f.getName().toLowerCase().endsWith(".bmp"))
 					bitmap = BMP.load(f);
-				else if (ext.equalsIgnoreCase(".pcx"))
+				else if (f.getName().toLowerCase().endsWith(".pcx"))
 					bitmap = PCX.load(f);
+				else
+					throw new Exception("Unsupported file type");
 
 				this.setBitmap(bitmap);
+			} catch (Exception e) {
+				e.printStackTrace();
+				JOptionPane.showMessageDialog(this, e.getMessage(), "Error",
+						JOptionPane.ERROR_MESSAGE);
+			}
+		}
+	}
+
+	/**
+	 * Ulozi obrazek ve 24bit variante jednoho z formatu. Podporujeme pouze
+	 * 24bpp z duvodu konverze mezi formaty (v nekterych pripadech by byla
+	 * nutna barevna redukce, ktera neni predmetem prace).
+	 *
+	 * @param f					objekt souboru do ktereho bude obrazek ulozen
+	 */
+	public void save(File f) {
+		// Pokud neni soubor zadan primo zobrazime dialog
+		if (f == null) {
+			JFileChooser chooser = new JFileChooser();
+			// Povolit pouze vyber 24bpp BMP a PCX souboru
+			chooser.removeChoosableFileFilter(
+					chooser.getChoosableFileFilters()[0]);
+			chooser.addChoosableFileFilter(new FileNameExtensionFilter(
+					"Bitmap (24bpp) file (*.bmp)", "bmp"));
+			chooser.addChoosableFileFilter(new FileNameExtensionFilter(
+					"Bitmap (24bpp) file (*.pcx)", "pcx"));
+
+			// Nastavit adresar s aplikaci
+			chooser.setCurrentDirectory(
+					new File(System.getProperty("user.dir")));
+
+			// Zobrazit dialog
+			if (chooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION)
+				f = chooser.getSelectedFile();
+			// Pokud nebyla zadana koncovka souboru pripojime ji
+			if ((f != null) && (f.getName().lastIndexOf('.') == -1)) {
+				String desc = chooser.getFileFilter().getDescription();
+				if (desc.endsWith("bmp)"))
+					f = new File(f.getAbsolutePath() + ".bmp");
+				else if (desc.endsWith("pcx)"))
+					f = new File(f.getAbsolutePath() + ".pcx");
+			}
+		}
+
+		// Pokud byl vybran soubor bude f nastaveno
+		if (f != null) {
+			try {
+				// Podle koncovky pouzit prislusny format
+				if (f.getName().endsWith(".bmp"))
+					BMP.save(this.bitmap, f);
+				else if (f.getName().endsWith(".pcx"))
+					PCX.save(this.bitmap, f);
+				else
+					throw new Exception("Unsupported file type");
 			} catch (Exception e) {
 				e.printStackTrace();
 				JOptionPane.showMessageDialog(this, e.getMessage(), "Error",
@@ -256,6 +298,9 @@ public class Window
 		if (e.getActionCommand().equals("Open")) {
 			this.open(null);
 		}
+		if (e.getActionCommand().equals("Save")) {
+			this.save(null);
+		}
 		else if (e.getActionCommand().equals("Info")) {
 			this.showInfo();
 		}
@@ -270,18 +315,23 @@ public class Window
 		// Edit
 		else if (e.getActionCommand().equals("Rotate 90CW")) {
 			this.bitmap.rotate(false);
+			this.modified = true;
 		}
 		else if (e.getActionCommand().equals("Rotate 90CCW")) {
 			this.bitmap.rotate(true);
+			this.modified = true;
 		}
 		else if (e.getActionCommand().equals("Vert. mirror")) {
 			this.bitmap.mirror(false);
+			this.modified = true;
 		}
 		else if (e.getActionCommand().equals("Horiz. mirror")) {
 			this.bitmap.mirror(true);
+			this.modified = true;
 		}
 		else if (e.getActionCommand().equals("Invert colors")) {
 			this.bitmap.invertColors();
+			this.modified = true;
 		}
 	}
 
