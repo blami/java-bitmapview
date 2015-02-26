@@ -1,7 +1,6 @@
-package com.bitmapview.util;
+package com.bitmapview.io;
 
 import java.io.*;
-import java.util.Arrays;
 
 /**
  * Trida implementujici DataInputStream akorat s tim ze nacitani veskerych
