@@ -1,13 +1,14 @@
 package com.bitmapview.format;
 
 import com.bitmapview.Bitmap;
-import com.bitmapview.util.DataInputStreamLE;
+import com.bitmapview.io.DataInputStreamLE;
+import com.bitmapview.io.DataOutputStreamLE;
 
 import java.awt.*;
 import java.io.*;
 
 /**
- * Trida pro nacitani BMP.
+ * Trida pro praci s formatem BMP.
  */
 public class BMP {
 
@@ -296,5 +297,78 @@ public class BMP {
 		reader.close();
 
 		return bmp;
+	}
+
+	/**
+	 * Ulozi objekt typu Bitmap do 24bpp BMP souboru. Pozn. pro funkci save
+	 * neuvazujeme zadnou kompresi, pouze jednu plane a vzdy 24bpp bez palety.
+	 * @param bmp				objekt reprezentujici bitmapovy soubor
+	 * @param f					objekt reprezentujici soubor kam ukladame
+	 */
+	public static void save(Bitmap bmp, File f) throws Exception {
+		if(bmp == null || f == null)
+			return;
+
+		DataOutputStreamLE writer = new DataOutputStreamLE(
+				new FileOutputStream(f));
+
+		// Vypocteme delku souboru (14b + 40b + 3*sirka*vyska)
+		int rawLength = 3 * (bmp.getSize().width * bmp.getSize().height);
+		int length = 14 + 40 + rawLength;
+		// Offset pixeldat je vzdy 54
+		int offset = 54;
+
+		// Tato metoda je pouze reverzi metody load a veskere potrebne
+		// informace jsou zdokumentovany jiz tam.
+
+		/* Hlavicka */
+		writer.write(new byte[] {0x42, 0x4D}); // BM
+		writer.writeInt(length); // delka bitmapy v bytes
+		writer.write(new byte[4]); // rezervovane bytes (4 x 0)
+		writer.writeInt(offset); // offset pixeldat
+
+		/* DIB hlavicka (BITMAPINFOHEADER) */
+		writer.writeInt(40); // delka hlavicky
+		// Rozmery bitmapy
+		writer.writeInt(bmp.getSize().width);
+		writer.writeInt(bmp.getSize().height);
+		writer.writeShort(1); // pocet planes
+		writer.writeShort(24); // bpp
+		writer.writeInt(0); // typ komprese BI_RGB
+		writer.writeInt(rawLength);
+		// Rozliseni (600x600dpi), neni dulezite
+		writer.writeInt(600);
+		writer.writeInt(600);
+		// Paletu nepouzivame
+		writer.writeInt(0); // pocet barev v palete
+		writer.writeInt(0); // pocet pouzitych barev
+
+		// Delka radku (zarovnano na 4 byte)
+		int rowLength = ((24 * bmp.getSize().width + 31) / 32) * 4;
+
+		/* Pixeldata */
+		for (int y = bmp.getSize().height - 1; y >= 0; y--) {
+			// Pomocna promenna pro pocitani zapsanych bytes na radku kvuli
+			// zarovnani
+			int writtenBytes = 0;
+
+			// Zapsat radek
+			for (int x = 0; x < bmp.getSize().width; x++) {
+				int r = bmp.getPixel(x, y).getRed();
+				int g = bmp.getPixel(x, y).getGreen();
+				int b = bmp.getPixel(x, y).getBlue();
+
+				byte pixel[] = new byte[] {(byte) b, (byte) g, (byte) r};
+				writer.write(pixel);
+				writtenBytes += 3;
+			}
+
+			// Zarovnani na delku radku
+			if (writtenBytes < rowLength)
+				writer.write(new byte[rowLength - writtenBytes]);
+		}
+
+		// Zavrit soubor
+		writer.close();
 	}
 }
