@@ -302,7 +302,7 @@ public class BMP {
 	/**
 	 * Ulozi objekt typu Bitmap do 24bpp BMP souboru. Pozn. pro funkci save
 	 * neuvazujeme zadnou kompresi, pouze jednu plane a vzdy 24bpp bez palety.
-	 * @param bmp				objekt reprezentujici bitmapovy soubor
+	 * @param bmp				objekt Bitmap
 	 * @param f					objekt reprezentujici soubor kam ukladame
 	 */
 	public static void save(Bitmap bmp, File f) throws Exception {
@@ -312,14 +312,14 @@ public class BMP {
 		DataOutputStreamLE writer = new DataOutputStreamLE(
 				new FileOutputStream(f));
 
+		// Tato metoda je pouze reverzi metody load a veskere potrebne
+		// informace jsou zdokumentovany jiz tam.
+
 		// Vypocteme delku souboru (14b + 40b + 3*sirka*vyska)
 		int rawLength = 3 * (bmp.getSize().width * bmp.getSize().height);
 		int length = 14 + 40 + rawLength;
 		// Offset pixeldat je vzdy 54
 		int offset = 54;
-
-		// Tato metoda je pouze reverzi metody load a veskere potrebne
-		// informace jsou zdokumentovany jiz tam.
 
 		/* Hlavicka */
 		writer.write(new byte[] {0x42, 0x4D}); // BM

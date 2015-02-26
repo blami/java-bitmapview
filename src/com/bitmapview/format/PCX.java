@@ -1,15 +1,17 @@
 package com.bitmapview.format;
 
 import com.bitmapview.Bitmap;
-import com.bitmapview.util.DataInputStreamLE;
+import com.bitmapview.io.DataInputStreamLE;
+import com.bitmapview.io.DataOutputStreamLE;
 
 import java.awt.*;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 
 
 /**
- * Trida pro nacitani PCX.
+ * Trida pro praci s formatem PCX.
  */
 public class PCX {
 
@@ -78,9 +80,7 @@ public class PCX {
 		reader.skipBytes(4);
 		// Barevna mapa EGA (pro 16 barev). Pozn: 256+ barev je na konci souboru
 		byte[] egaPalette = new byte[48];
-		for(int i = 0; i < 48; i++)
-			egaPalette[i] = reader.readByte();
-		//reader.read(egaPalette);
+		reader.read(egaPalette);
 		// Reserved
 		reader.skipBytes(1);
 		// Pocet planes (podporujeme pouze kombinace 1 plane nebo 3 planes a
@@ -273,6 +273,102 @@ public class PCX {
 		reader.close();
 
 		return pcx;
+	}
+
+	/**
+	 * Ulozi objekt typu Bitmap do 24bpp (3 plane x 8bpp) PCX souboru. Vzdy
+	 * je uvazovana komprese RLE a nikdy neni obsazena paleta.
+	 * @param pcx				objekt Bitmap
+	 * @param f					objekt reprezentujici soubor kam ukladame
+	 */
+	public static void save(Bitmap pcx, File f) throws Exception {
+		if(pcx == null || f == null)
+			return;
+
+		DataOutputStreamLE writer = new DataOutputStreamLE(
+				new FileOutputStream(f));
+
+		// Pocet bytes na jednu radku
+		int bytesPerLine = pcx.getSize().width * 1; // 1 byte na plane
+
+		// Tato metoda je pouze reverzi metody load a veskere potrebne
+		// informace jsou zdokumentovany jiz tam.
+
+		/* Hlavicka */
+		writer.writeByte(0x0A); // identifikator PCX
+		writer.writeByte(5); // verze PCX je vzdy 5 (podpora 24bpp)
+		writer.writeByte(1); // RLE komprese
+		writer.writeByte(8); // bpp
+		// Rozmery obrazku
+		writer.writeShort(0); // xStart
+		writer.writeShort(0); // yStart
+		writer.writeShort(pcx.getSize().width - 1); // xEnd
+		writer.writeShort(pcx.getSize().height - 1); // yEnd
+		// Rozliseni 600x600 dpi (neni dulezite)
+		writer.writeShort(600);
+		writer.writeShort(600);
+		// EGA paleta (vse 0)
+		writer.write(new byte[48]);
+		writer.writeByte(0); // reserved
+		// Pocet planes - vzdy 3 pro kombinaci 8x3
+		writer.writeByte(3);
+		// Pocet bytes na jednu radku obrazku
+		writer.writeShort(bytesPerLine);
+		// Typ palety
+		writer.writeShort(1); // ignorovano
+		// Velikost obrazovky (vyrezu)
+		writer.writeShort(pcx.getSize().width); // sirka
+		writer.writeShort(pcx.getSize().height); // vyska
+		// Reserved
+		writer.write(new byte[54]); // 0
+
+		/* Pixeldata */
+		int scanLineLength = 3 * bytesPerLine;
+		for (int l = 0; l < pcx.getSize().height; l++) {
+			// buffer pro jednu radku
+			byte[] buffer = new byte[scanLineLength];
+			// do promenne buffer nacteme celou radku z Bitmap objektu
+			// kazda barva je reprezentovana jednim byte v prislusne plane
+			// viz. nacitaci funkce pro PCX bez palety vyse
+			for (int x = 0; x < pcx.getSize().width; x++) {
+				buffer[0 + x] = (byte) pcx.getPixel(x, l).getRed();
+				buffer[bytesPerLine + x] = (byte) pcx.getPixel(x, l).getGreen();
+				buffer[bytesPerLine * 2 + x ]
+						= (byte) pcx.getPixel(x, l).getBlue();
+			}
+
+			// provedeme RLE kompresi a zapis do souboru
+			int i = 0;
+			do {
+				int runLength = 0;
+				// spocitame kolik (do 63 coz je maximalni delka runu) je
+				// stejnych byte vedle sebe
+				while (runLength < 62 && i + runLength + 1 < scanLineLength
+						&& buffer[i + runLength] == buffer [i + runLength +	1])
+					runLength++;
+
+				// Pokud je run delsi nez jedna provedeme kompresi
+				if (runLength > 0) {
+					// zapiseme RLE byte s delkou runu
+					writer.writeByte(runLength + 1 | 0xC0);
+					// zapiseme opakujici se byte
+					writer.writeByte(buffer[i]);
+					// posuneme se v radce az za sekvenci, kterou jsme zapsali
+					i += runLength + 1;
+				} else {
+					// musime osetrit situaci kdy delka runu je 1 (pokud je
+					// hodnota 0xC0 to prijde na dva byte 0xC1 + hodnota
+					// co se opakuje 1x)
+					if ((buffer[i] & 0xC0) == 0xC0)
+						writer.writeByte(0xC1); // 1 opakovani nasled. byte
+					writer.writeByte(buffer[i++]);
+				}
+
+			} while (i < scanLineLength);
+		}
+
+		// Zavrit soubor
+		writer.close();
 	}
 
 }
