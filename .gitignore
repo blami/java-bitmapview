@@ -2,3 +2,5 @@
 out/
 *.class
 *.iml
+*.jar
+bitmapview.zip
